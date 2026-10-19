@@ -36,7 +36,7 @@ function cfg = getDefaultConfig()
     end
 
     % プレアンブル設定
-    cfg.signal.superPreambleOrder = 13;          % 8191 symbols/bits (ファイル先頭に1回)
+    cfg.signal.superPreambleOrder = 13;          % 8191 symbols/bits
     cfg.signal.framePreambleOrder = 8;           % 255 symbols/bits
     cfg.signal.appendFramePreambleDummyBit = true; % ダミービットを追加して256に
     
