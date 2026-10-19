@@ -9,9 +9,3 @@ data/output/*
 !data/output/.gitkeep
 data/input/*
 !data/input/.gitkeep
-
-# 念のため旧形式の出力名も除外
-tx_m8195a_awg_waveform/
-*.bin
-*.csv
-tx_m8195a_metadata.mat
