@@ -1,4 +1,4 @@
-# AWG Waveform Generator for MNIST (TX Pipeline)
+# Optical-Convolution-Experiment-Image-Generator
 
 Keysight M8195A AWG（任意波形発生器）を用いて、MNISTの手書き数字画像を送信するためのアナログ波形データ（バイナリ）を生成するMATLABパッケージです。
 光畳み込み実験の送信側（TX）にあたります。
