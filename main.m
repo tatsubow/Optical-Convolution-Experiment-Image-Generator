@@ -1,4 +1,4 @@
-% =========================================================================
+%% =========================================================================
 % 光通信用 AWG (Arbitrary Waveform Generator) 波形生成スクリプト
 % =========================================================================
 
@@ -7,69 +7,88 @@ clear; close all; clc;
 %% 1. 初期化と設定の読み込み
 fprintf('--- 1. 設定の読み込み ---\n');
 cfg = config.getDefaultConfig();
-% 出力先ディレクトリが存在しない場合は作成
-if ~isfolder(cfg.io.outputDirectory)
-    mkdir(cfg.io.outputDirectory);
+
+%% 2. MNISTデータの均等抽出 (Task 2で作成した関数)
+fprintf('--- 2. MNISTテストデータのロード（層化抽出） ---\n');
+[images, transmitLabels, transmitIndices] = io.loadBalancedMNIST(cfg);
+
+%% 3. プレアンブルの生成
+fprintf('--- 3. プレアンブル波形の生成 ---\n');
+% スーパープレアンブルとフレームプレアンブルのビット生成
+superPreambleBits = signal.generateMSequence(cfg.signal.superPreambleOrder);
+framePreambleBits = signal.generateMSequence(cfg.signal.framePreambleOrder);
+if cfg.signal.appendFramePreambleDummyBit
+    framePreambleBits = [framePreambleBits; uint8(0)];
 end
 
+% シンボル化
+superPreambleSymbols = signal.bitsToBinarySymbols(superPreambleBits);
+framePreambleSymbols = signal.bitsToBinarySymbols(framePreambleBits);
 
-%% 2. プレアンブル（同期信号）の生成
-fprintf('--- 2. プレアンブル波形の生成 ---\n');
-% M系列のビット配列を生成
-preambleBits = signal.generateMSequence(13); % 例: 次数13
-% ビットを通信シンボルに変換
-preambleSymbols = signal.bitsToBinarySymbols(preambleBits);
-% シンボルをAWG出力用の振幅レベル(int8)にマッピング
-preambleSamples = signal.binarySymbolsToInt8Levels(...
-    preambleSymbols, ...
-    cfg.hw.preambleMinimumInt8, ...
-    cfg.hw.preambleMaximumInt8);
+% AWG振幅レベルへ変換
+superPreambleLevels = signal.binarySymbolsToInt8Levels(superPreambleSymbols, cfg.hw.lowLevelInt8, cfg.hw.highLevelInt8);
+framePreambleLevels = signal.binarySymbolsToInt8Levels(framePreambleSymbols, cfg.hw.lowLevelInt8, cfg.hw.highLevelInt8);
 
+% 全体の波形配列（初期状態はスーパープレアンブルのみ）
+allSymbolLevelsInt8 = superPreambleLevels;
 
-%% 3. 画像データの読み込みと前処理
-fprintf('--- 3. 画像処理 ---\n');
-% 画像読み込み
-originalImage = imread(cfg.io.inputImageFile);
+%% 4. 画像データ（ペイロード）の波形生成
+fprintf('--- 4. ペイロード波形の生成（全 %d フレーム） ---\n', cfg.image.numberOfFrames);
 
-% グレースケール画像を量子化
-quantizedImage = image.quantizeGrayscale(...
-    originalImage, ...
-    cfg.image.compressionBits, ...
-    0.5); % binaryThreshold = 0.5
+for i = 1:cfg.image.numberOfFrames
+    % 1フレーム（1画像）を取り出し
+    img = images(:, :, 1, i);
 
-% ピクセル配列を1次元に並び替え（設定に応じてM×Nの畳み込み順序またはラスタ順序）
-pixelCodes = image.orderPixelCodes(quantizedImage, cfg);
+    % 画像パッケージでの処理：量子化と並び替え (M×Nカーネル対応版)
+    qImg = image.quantizeGrayscale(img, cfg.image.compressionBits, cfg.image.binaryThreshold);
+    orderedCodes = image.orderPixelCodes(qImg, cfg);
 
+    % 出力モードに応じた信号処理
+    if cfg.signal.outputMode == "serialNrz"
+        payloadBits = signal.pixelCodesToBits(orderedCodes, cfg.image.compressionBits, cfg.image.payloadBitOrder);
+        if cfg.image.invertPayloadBits
+            payloadBits = uint8(1 - payloadBits);
+        end
+        payloadBits = signal.padBits(payloadBits, cfg.image.payloadPadMultipleBits);
+        payloadSymbols = signal.bitsToBinarySymbols(payloadBits);
+        payloadLevels = signal.binarySymbolsToInt8Levels(payloadSymbols, cfg.hw.lowLevelInt8, cfg.hw.highLevelInt8);
+        
+    elseif cfg.signal.outputMode == "pixelSymbol"
+        payloadPixelCodes = orderedCodes;
+        if cfg.image.invertPixelCodes
+            maxCode = uint8(2^cfg.image.compressionBits - 1);
+            payloadPixelCodes = maxCode - payloadPixelCodes;
+        end
+        payloadPixelCodes = signal.padPixelCodes(payloadPixelCodes, cfg.image.payloadPadMultipleSymbols);
+        payloadLevels = signal.pixelSymbolsToInt8Levels(payloadPixelCodes, cfg);
+    else
+        error("Unsupported outputMode: %s", cfg.signal.outputMode);
+    end
 
-%% 4. ペイロード（データ本体）の波形生成
-fprintf('--- 4. ペイロード波形の生成 ---\n');
+    % フレームプレアンブルと画像ペイロードを全体の波形配列に追加
+    allSymbolLevelsInt8 = [allSymbolLevelsInt8; framePreambleLevels; payloadLevels];
 
-% 必要に応じてピクセルコードをシリアライズする場合はここで実施
-% 例: bits = signal.pixelCodesToBits(pixelCodes, 8, "msb");
+    % 進捗の表示
+    if mod(i, 100) == 0
+        fprintf('  built %d / %d frames\n', i, cfg.image.numberOfFrames);
+    end
+end
 
-% 多値のピクセルシンボルをAWG出力用の振幅レベル(int8)に直接マッピング
-payloadSamples = signal.pixelSymbolsToInt8Levels(pixelCodes, cfg);
+%% 5. AWGサンプルレートへのアップサンプリングとパディング
+fprintf('--- 5. サンプルレート変換とパディング ---\n');
+% シンボルレートからAWGサンプルレートへリピート（Zero-Order Hold）
+waveformInt8 = repelem(allSymbolLevelsInt8, cfg.signal.samplesPerSymbol);
 
+% M8195Aのセグメント粒度（256など）に合わせて末尾をパディング
+if cfg.hw.padWaveformWithLowLevel
+    waveformInt8 = signal.padSamples(waveformInt8, cfg.hw.awgGranularitySamples, cfg.hw.lowLevelInt8);
+end
 
-%% 5. フレーム結合とパディング（アライメント調整）
-fprintf('--- 5. フレーム結合とパディング ---\n');
-% プレアンブルとペイロードを結合して1フレームを構成
-frameSamplesInt8 = [preambleSamples; payloadSamples];
+% 符号なし8bit（オフセットバイナリ）形式も作成
+waveformUInt8 = uint8(int16(waveformInt8) + 128);
 
-% AWGの要求するアライメント（例: 128サンプルの倍数など）に合わせてパディング
-% ※ cfg.hw.alignmentSize が設定ファイルにあると仮定（なければ任意の数字に変更してください）
-alignmentSize = 128; 
-[paddedSamplesInt8, numPadded] = signal.padSamples(frameSamplesInt8, alignmentSize, 0);
-
-fprintf('追加されたパディングサンプル数: %d\n', numPadded);
-
-% uint8形式（符号なしバイナリ）の波形も作成
-% int8 を uint8 に型キャスト（ビットパターンは維持）
-paddedSamplesUInt8 = typecast(paddedSamplesInt8, 'uint8');
-
-
-%% 6. 波形ファイルとメタデータの出力
+%% 6. 波形ファイル出力
 fprintf('--- 6. ファイル出力 ---\n');
-io.exportWaveform(cfg, paddedSamplesInt8, paddedSamplesUInt8);
+io.exportWaveform(cfg, waveformInt8, waveformUInt8);
 
 fprintf('\n==== 全ての処理が完了しました ====\n');
