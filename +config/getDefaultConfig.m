@@ -19,6 +19,8 @@ function cfg = getDefaultConfig()
     cfg.image.binaryThreshold         = 0.5;     % compressionBits == 1 の場合に使用
     cfg.image.payloadBitOrder         = "msb";   % "msb" または "lsb" ("serialNrz"用)
     cfg.image.useConvolutionReorder   = true;    % true: 2x2畳み込み用27行順序, false: 通常のラスタ順序
+    cfg.image.convKernelHeight        = 2;       % 縦のウィンドウサイズ（2x1なら2, 1x2なら1）
+    cfg.image.convKernelWidth         = 1;       % 横のウィンドウサイズ（2x1なら1, 1x2なら2）
     cfg.image.payloadPadMultipleBits  = 16;      % "serialNrz"用パディング (1でパディングなし)
     cfg.image.payloadPadMultipleSymbols = 1;     % "pixelSymbol"用パディング (1でパディングなし)
     
