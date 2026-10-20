@@ -3,6 +3,7 @@ function cfg = getDefaultConfig()
     
     %% --- IO (入出力) 設定 ---
     cfg.io.outputDirectory = fullfile('data', 'output');
+    cfg.io.outputFormat    = "csv"; % 出力形式: "bin", "csv", または "both"
     
     %% --- 画像・ペイロード設定 ---
     cfg.image.numberOfFrames = 1000;         % 送信する総フレーム（画像）数
