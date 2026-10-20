@@ -1,0 +1,11 @@
+# .gitignore
+
+# MATLAB specific
+*.asv
+*.m~
+
+# Generated Data (Waveforms, Metadata, etc.)
+data/output/*
+!data/output/.gitkeep
+data/input/*
+!data/input/.gitkeep
