@@ -29,8 +29,8 @@ framePreambleSymbols = signal.bitsToBinarySymbols(framePreambleBits);
 superPreambleLevels = signal.binarySymbolsToInt8Levels(superPreambleSymbols, cfg.hw.lowLevelInt8, cfg.hw.highLevelInt8);
 framePreambleLevels = signal.binarySymbolsToInt8Levels(framePreambleSymbols, cfg.hw.lowLevelInt8, cfg.hw.highLevelInt8);
 
-% 全体の波形配列（初期状態はスーパープレアンブルのみ）
-allSymbolLevelsInt8 = superPreambleLevels;
+% 全体の波形配列（初期状態はスーパープレアンブルを指定回数繰り返したもの）
+allSymbolLevelsInt8 = repmat(superPreambleLevels, cfg.signal.preambleRepeats, 1);
 
 %% 4. 画像データ（ペイロード）の波形生成
 fprintf('--- 4. ペイロード波形の生成（全 %d フレーム） ---\n', cfg.image.numberOfFrames);

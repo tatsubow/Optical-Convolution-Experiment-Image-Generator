@@ -40,6 +40,7 @@ function cfg = getDefaultConfig()
 
     % プレアンブル設定
     cfg.signal.superPreambleOrder = 13;          % 8191 symbols/bits
+    cfg.signal.preambleRepeats = 8;
     cfg.signal.framePreambleOrder = 8;           % 255 symbols/bits
     cfg.signal.appendFramePreambleDummyBit = true; % ダミービットを追加して256に
     
@@ -49,6 +50,6 @@ function cfg = getDefaultConfig()
     cfg.hw.pixelMinimumInt8 = int8(-100);        % ピクセルシンボルの最低振幅
     cfg.hw.pixelMaximumInt8 = int8(100);         % ピクセルシンボルの最高振幅
     cfg.hw.awgGranularitySamples = 256;          % M8195Aのセグメント粒度
-    cfg.hw.padWaveformWithLowLevel = true;
+    cfg.hw.padWaveformWithLowLevel = false;      % 末尾を低レベルでパディングするか
     
 end

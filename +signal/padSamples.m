@@ -14,8 +14,9 @@ function [paddedSamples, numPadded] = padSamples(samples, multipleSize, padValue
         paddedSamples = samples;
     else
         numPadded = multipleSize - remainder;
-        % 元のサンプル配列のデータ型(class)に合わせてパディング配列を作成
-        padArray = repmat(cast(padValue, class(samples)), numPadded, 1);
+
+        padArray = samples(1:numPadded);
+        
         paddedSamples = [samples; padArray];
     end
 end
